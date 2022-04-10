@@ -9,3 +9,5 @@
 # 6) Исключены конфигаруционные файлы терраформа .terraformrc terraform.rc
 #
 #
+new line 10042022
+#new line 10042022
