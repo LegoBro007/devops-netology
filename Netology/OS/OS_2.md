@@ -43,6 +43,36 @@ alegach@ubuntu:~$ sudo systemctl status node_exporter
      CGroup: /system.slice/node_exporter.service
              └─934 /usr/local/bin/node_exporter
 
+-------------------------------------------
+
+Доработки задания:
+
+Создал файл  /etc/default/node_exporter
+В нем прописал следующие опции $MY_OPTS="-collector.disable-defaults --collector.cpu --collector.meminfo --collector.filesystem --collector.netdev"
+В файле сервиса прописал  ExecStart=/usr/local/bin/node_exporter -f $MY_OPTS
+Перезапустил демон, проверил вывод обвноленного сервиса
+
+
+● node_exporter.service - Node Exporter
+     Loaded: loaded (/etc/systemd/system/node_exporter.service; enabled; vendor preset: enabled)
+     Active: active (running) since Wed 2022-05-25 07:09:57 PDT; 4 days ago
+   Main PID: 1125 (node_exporter)
+      Tasks: 5 (limit: 4578)
+     Memory: 1004.0K
+     CGroup: /system.slice/node_exporter.service
+             └─1125 /usr/local/bin/node_exporter
+
+May 25 07:09:57 ubuntu node_exporter[1125]: ts=2022-05-25T14:09:57.626Z caller=node_exporter.go:115 level=info collector=time
+May 25 07:09:57 ubuntu node_exporter[1125]: ts=2022-05-25T14:09:57.626Z caller=node_exporter.go:115 level=info collector=timex
+May 25 07:09:57 ubuntu node_exporter[1125]: ts=2022-05-25T14:09:57.626Z caller=node_exporter.go:115 level=info collector=udp_queues
+May 25 07:09:57 ubuntu node_exporter[1125]: ts=2022-05-25T14:09:57.626Z caller=node_exporter.go:115 level=info collector=uname
+May 25 07:09:57 ubuntu node_exporter[1125]: ts=2022-05-25T14:09:57.626Z caller=node_exporter.go:115 level=info collector=vmstat
+May 25 07:09:57 ubuntu node_exporter[1125]: ts=2022-05-25T14:09:57.626Z caller=node_exporter.go:115 level=info collector=xfs
+May 25 07:09:57 ubuntu node_exporter[1125]: ts=2022-05-25T14:09:57.626Z caller=node_exporter.go:115 level=info collector=zfs
+May 25 07:09:57 ubuntu node_exporter[1125]: ts=2022-05-25T14:09:57.627Z caller=node_exporter.go:199 level=info msg="Listening on" address=:9100
+May 25 07:09:57 ubuntu node_exporter[1125]: ts=2022-05-25T14:09:57.630Z caller=tls_config.go:195 level=info msg="TLS is disabled." http2=false
+
+
 
 2. Ознакомьтесь с опциями node_exporter и выводом /metrics по-умолчанию. Приведите несколько опций, которые вы бы выбрали для базового мониторинга хоста по CPU, памяти, диску и сети.
 ----------------------
