@@ -78,22 +78,63 @@ origin:         AS51570
 
 5. Через какие сети проходит пакет, отправленный с вашего компьютера на адрес 8.8.8.8? Через какие AS? Воспользуйтесь утилитой traceroute
 
+Лично у меня, к сожалению, никакие. Попробовал и дома, и на работе, при этом дома убедился, что ICMP не блокируется на стороне роутера. По итогу вывод следующий
+
+alegachev@alegachev-virtual-machine:~$ traceroute -A 8.8.8.8
+traceroute to 8.8.8.8 (8.8.8.8), 30 hops max, 60 byte packets
+ 1  _gateway (192.168.64.2) [*]  0.515 ms  0.427 ms  0.366 ms
+ 2  * * *
+ 3  * * *
+ 4  * * *
+ 5  * * *
+ 6  * * *
+ 7  *^C
 
 
 6. Повторите задание 5 в утилите mtr. На каком участке наибольшая задержка - delay?
 
+alegachev@alegachev-virtual-machine:~$ mtr 8.8.8.8
 
+Наибольшая задержка оказалась на 10ом участке
+
+                                                                                                             Packets               Pings
+ Host                                                                                                      Loss%   Snt   Last   Avg  Best  Wrst StDev
+10. AS15169  216.239.49.3                                                                                   0.0%    11   10.5  10.2   9.6  10.9   0.4
 
 
 7. Какие DNS сервера отвечают за доменное имя dns.google? Какие A записи? воспользуйтесь утилитой dig
 
+Выполнил команду 
+alegachev@alegachev-virtual-machine:~$ dig dns.google
 
-dns.google.		900	IN	A	8.8.4.4
-dns.google.		900	IN	A	8.8.8.8
+Получил ответ:
+
+;; ANSWER SECTION:
+dns.google.		5	IN	A	8.8.4.4
+dns.google.		5	IN	A	8.8.8.8
+
 
 
 
 8. Проверьте PTR записи для IP адресов из задания 7. Какое доменное имя привязано к IP? воспользуйтесь утилитой dig
+
+4.4.8.8.in-addr.arpa.
+8.8.8.8.in-addr.arpa.
+
+Выполненные запросы:
+
+alegachev@alegachev-virtual-machine:~$ dig -x 8.8.4.4
+
+;; QUESTION SECTION:
+;4.4.8.8.in-addr.arpa.		IN	PTR
+
+;; ANSWER SECTION:
+4.4.8.8.in-addr.arpa.	5	IN	PTR	dns.google.
+
+alegachev@alegachev-virtual-machine:~$ dig -x 8.8.8.8
+
+;; QUESTION SECTION:
+;8.8.8.8.in-addr.arpa.		IN	PTR
 
 ;; ANSWER SECTION:
 8.8.8.8.in-addr.arpa.	5	IN	PTR	dns.google.
