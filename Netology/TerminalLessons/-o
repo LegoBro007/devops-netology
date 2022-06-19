@@ -1,0 +1,547 @@
+STRACE(1)                                                                              General Commands Manual                                                                              STRACE(1)
+
+NNAAMMEE
+       strace - trace system calls and signals
+
+SSYYNNOOPPSSIISS
+       ssttrraaccee [--AACCddffffhhiikkqqqqrrttttttTTvvVVwwxxxxyyyyzzZZ] [--II _n] [--bb _e_x_e_c_v_e] [--ee _e_x_p_r]... [--aa _c_o_l_u_m_n] [--oo _f_i_l_e] [--ss _s_t_r_s_i_z_e] [--XX _f_o_r_m_a_t] [--PP _p_a_t_h]... [--pp _p_i_d]... [----sseeccccoommpp--bbppff] { --pp _p_i_d | [--DDDDDD] [--EE _v_a_r[=_v_a_l]]...
+              [--uu _u_s_e_r_n_a_m_e] _c_o_m_m_a_n_d [_a_r_g_s] }
+
+       ssttrraaccee --cc [--ddffwwzzZZ] [--II _n] [--bb _e_x_e_c_v_e] [--ee _e_x_p_r]... [--OO _o_v_e_r_h_e_a_d] [--SS _s_o_r_t_b_y] [--PP _p_a_t_h]... [--pp _p_i_d]... [----sseeccccoommpp--bbppff] { --pp _p_i_d | [--DDDDDD] [--EE _v_a_r[=_v_a_l]]... [--uu _u_s_e_r_n_a_m_e] _c_o_m_m_a_n_d [_a_r_g_s] }
+
+DDEESSCCRRIIPPTTIIOONN
+       In the simplest case ssttrraaccee runs the specified _c_o_m_m_a_n_d until it exits.  It intercepts and records the system calls which are called by a process and the  signals  which  are  received  by  a
+       process.  The name of each system call, its arguments and its return value are printed on standard error or to the file specified with the --oo option.
+
+       ssttrraaccee  is  a useful diagnostic, instructional, and debugging tool.  System administrators, diagnosticians and trouble-shooters will find it invaluable for solving problems with programs for
+       which the source is not readily available since they do not need to be recompiled in order to trace them.  Students, hackers and the overly-curious will find that a great deal can be learned
+       about  a  system and its system calls by tracing even ordinary programs.  And programmers will find that since system calls and signals are events that happen at the user/kernel interface, a
+       close examination of this boundary is very useful for bug isolation, sanity checking and attempting to capture race conditions.
+
+       Each line in the trace contains the system call name, followed by its arguments in parentheses and its return value.  An example from stracing the command "cat /dev/null" is:
+
+           open("/dev/null", O_RDONLY) = 3
+
+       Errors (typically a return value of -1) have the errno symbol and error string appended.
+
+           open("/foo/bar", O_RDONLY) = -1 ENOENT (No such file or directory)
+
+       Signals are printed as signal symbol and decoded siginfo structure.  An excerpt from stracing and interrupting the command "sleep 666" is:
+
+           sigsuspend([] <unfinished ...>
+           --- SIGINT {si_signo=SIGINT, si_code=SI_USER, si_pid=...} ---
+           +++ killed by SIGINT +++
+
+       If a system call is being executed and meanwhile another one is being called from a different thread/process then ssttrraaccee will try to preserve the order of those events and mark  the  ongoing
+       call as being _u_n_f_i_n_i_s_h_e_d.  When the call returns it will be marked as _r_e_s_u_m_e_d.
+
+           [pid 28772] select(4, [3], NULL, NULL, NULL <unfinished ...>
+           [pid 28779] clock_gettime(CLOCK_REALTIME, {1130322148, 939977000}) = 0
+           [pid 28772] <... select resumed> )      = 1 (in [3])
+
+       Interruption  of  a  (restartable) system call by a signal delivery is processed differently as kernel terminates the system call and also arranges its immediate reexecution after the signal
+       handler completes.
+
+           read(0, 0x7ffff72cf5cf, 1)              = ? ERESTARTSYS (To be restarted)
+           --- SIGALRM ... ---
+           rt_sigreturn(0xe)                       = 0
+           read(0, "", 1)                          = 0
+
+       Arguments are printed in symbolic form with passion.  This example shows the shell performing ">>xyzzy" output redirection:
+
+           open("xyzzy", O_WRONLY|O_APPEND|O_CREAT, 0666) = 3
+
+       Here, the third argument of ooppeenn(2) is decoded by breaking down the flag argument into its three bitwise-OR constituents and printing the mode value in octal by tradition.  Where the  tradi‐
+       tional or native usage differs from ANSI or POSIX, the latter forms are preferred.  In some cases, ssttrraaccee output is proven to be more readable than the source.
+
+       Structure  pointers  are  dereferenced and the members are displayed as appropriate.  In most cases, arguments are formatted in the most C-like fashion possible.  For example, the essence of
+       the command "ls -l /dev/null" is captured as:
+
+           lstat("/dev/null", {st_mode=S_IFCHR|0666, st_rdev=makedev(0x1, 0x3), ...}) = 0
+
+       Notice how the 'struct stat' argument is dereferenced and how each member is displayed symbolically.  In particular, observe how the sstt__mmooddee member is carefully decoded into a bitwise-OR  of
+       symbolic and numeric values.  Also notice in this example that the first argument to llssttaatt(2) is an input to the system call and the second argument is an output.  Since output arguments are
+       not modified if the system call fails, arguments may not always be dereferenced.  For example, retrying the "ls -l" example with a non-existent file produces the following line:
+
+           lstat("/foo/bar", 0xb004) = -1 ENOENT (No such file or directory)
+
+       In this case the porch light is on but nobody is home.
+
+       Syscalls unknown to ssttrraaccee are printed raw, with the unknown system call number printed in hexadecimal form and prefixed with "syscall_":
+
+           syscall_0xbad(0x1, 0x2, 0x3, 0x4, 0x5, 0x6) = -1 ENOSYS (Function not implemented)
+
+       Character pointers are dereferenced and printed as C strings.  Non-printing characters in strings are normally represented by ordinary C escape codes.  Only the first _s_t_r_s_i_z_e (32 by default)
+       bytes of strings are printed; longer strings have an ellipsis appended following the closing quote.  Here is a line from "ls -l" where the ggeettppwwuuiidd(3) library routine is reading the password
+       file:
+
+           read(3, "root::0:0:System Administrator:/"..., 1024) = 422
+
+       While structures are annotated using curly braces, simple pointers and arrays are printed using square brackets with commas separating elements.  Here is an example from the command iidd(1) on
+       a system with supplementary group ids:
+
+           getgroups(32, [100, 0]) = 2
+
+       On the other hand, bit-sets are also shown using square brackets, but set elements are separated only by a space.  Here is the shell, preparing to execute an external command:
+
+           sigprocmask(SIG_BLOCK, [CHLD TTOU], []) = 0
+
+       Here,  the  second argument is a bit-set of two signals, SSIIGGCCHHLLDD and SSIIGGTTTTOOUU.  In some cases, the bit-set is so full that printing out the unset elements is more valuable.  In that case, the
+       bit-set is prefixed by a tilde like this:
+
+           sigprocmask(SIG_UNBLOCK, ~[], NULL) = 0
+
+       Here, the second argument represents the full set of all signals.
+
+OOPPTTIIOONNSS
+   GGeenneerraall
+       --ee _e_x_p_r     A qualifying expression which modifies which events to trace or how to trace them.  The format of the expression is:
+
+                             [_q_u_a_l_i_f_i_e_r==][!!]_v_a_l_u_e[,,_v_a_l_u_e]...
+
+                   where _q_u_a_l_i_f_i_e_r is one of ttrraaccee, aabbbbrreevv, vveerrbboossee, rraaww, ssiiggnnaall, rreeaadd, wwrriittee, ffaauulltt, iinnjjeecctt, ssttaattuuss, or kkvvmm, and _v_a_l_u_e is a qualifier-dependent symbol or number.  The default qual‐
+                   ifier is ttrraaccee.  Using an exclamation mark negates the set of values.  For example, --ee ooppeenn means literally --ee ttrraaccee=ooppeenn which in turn means trace only the ooppeenn system call.  By
+                   contrast, --ee ttrraaccee=!ooppeenn means to trace every system call except ooppeenn.  In addition, the special values aallll and nnoonnee have the obvious meanings.
+
+                   Note that some shells use the exclamation point for history expansion even inside quoted arguments.  If so, you must escape the exclamation point with a backslash.
+
+   SSttaarrttuupp
+       --EE _v_a_r=_v_a_l
+       ----eennvv=_v_a_r=_v_a_l
+                   Run command with _v_a_r=_v_a_l in its list of environment variables.
+
+       --EE _v_a_r
+       ----eennvv=_v_a_r   Remove _v_a_r from the inherited list of environment variables before passing it on to the command.
+
+       --pp _p_i_d
+       ----aattttaacchh=_p_i_d
+                   Attach to the process with the process ID _p_i_d and begin tracing.  The trace may be terminated at any time by a keyboard interrupt signal (CCTTRRLL--CC).  ssttrraaccee will respond by detach‐
+                   ing  itself  from  the traced process(es) leaving it (them) to continue running.  Multiple --pp options can be used to attach to many processes in addition to _c_o_m_m_a_n_d (which is op‐
+                   tional if at least one --pp option is given).  --pp "`pidof PROG`" syntax is supported.
+
+       --uu _u_s_e_r_n_a_m_e
+       ----uusseerr=_u_s_e_r_n_a_m_e
+                   Run command with the user ID, group ID, and supplementary groups of _u_s_e_r_n_a_m_e.  This option is only useful when running as root and enables the correct execution of setuid  and/or
+                   setgid binaries.  Unless this option is used setuid and setgid programs are executed without effective privileges.
+
+   TTrraacciinngg
+       --bb _s_y_s_c_a_l_l
+       ----ddeettaacchh--oonn=_s_y_s_c_a_l_l
+                   If  specified  syscall is reached, detach from traced process.  Currently, only eexxeeccvvee(2) syscall is supported.  This option is useful if you want to trace multi-threaded process
+                   and therefore require --ff, but don't want to trace its (potentially very complex) children.
+
+       --DD          Run tracer process as a grandchild, not as the parent of the tracee.  This reduces the visible effect of ssttrraaccee by keeping the tracee a direct child of the calling process.
+
+       --DDDD         Run tracer process as tracee's grandchild in a separate process group.  In addition to reduction of the visible effect of ssttrraaccee, it also avoids killing of  ssttrraaccee  with  kkiillll(2)
+                   issued to the whole process group.
+
+       --DDDDDD        Run  tracer  process  as  tracee's  grandchild  in a separate session ("true daemonisation").  In addition to reduction of the visible effect of ssttrraaccee, it also avoids killing of
+                   ssttrraaccee upon session termination.
+
+       --ff          Trace child processes as they are created by currently traced processes as a result of the ffoorrkk(2), vvffoorrkk(2) and cclloonnee(2) system calls.  Note that  --pp  _P_I_D  --ff  will  attach  all
+                   threads of process _P_I_D if it is multi-threaded, not only thread with _t_h_r_e_a_d___i_d = _P_I_D.
+
+       --ffff         If  the --oo _f_i_l_e_n_a_m_e option is in effect, each processes trace is written to _f_i_l_e_n_a_m_e._p_i_d where _p_i_d is the numeric process id of each process.  This is incompatible with --cc, since
+                   no per-process counts are kept.
+
+                   One might want to consider using ssttrraaccee--lloogg--mmeerrggee(1) to obtain a combined strace log view.
+
+       --II _i_n_t_e_r_r_u_p_t_i_b_l_e
+                   When ssttrraaccee can be interrupted by signals (such as pressing CCTTRRLL--CC).
+
+                   11   no signals are blocked;
+                   22   fatal signals are blocked while decoding syscall (default);
+                   33   fatal signals are always blocked (default if --oo _F_I_L_E _P_R_O_G);
+                   44   fatal signals and SSIIGGTTSSTTPP (CCTTRRLL--ZZ) are always blocked (useful to make ssttrraaccee --oo _F_I_L_E _P_R_O_G not stop on CCTTRRLL--ZZ, default if --DD).
+
+   FFiilltteerriinngg
+       --ee ttrraaccee=_s_y_s_c_a_l_l___s_e_t
+       ----ttrraaccee=_s_y_s_c_a_l_l___s_e_t
+                   Trace only the specified set of system calls.  _s_y_s_c_a_l_l___s_e_t is defined as [!!]_v_a_l_u_e[,,_v_a_l_u_e], and _v_a_l_u_e can be one of the following:
+
+                   _s_y_s_c_a_l_l      Trace specific syscall, specified by its name (but see NNOOTTEESS).
+
+                   ??_v_a_l_u_e       Question mark before the syscall qualification allows suppression of error in case no syscalls matched the qualification provided.
+
+                   //_r_e_g_e_x       Trace only those system calls that match the _r_e_g_e_x.  You can use PPOOSSIIXX Extended Regular Expression syntax (see rreeggeexx(7)).
+
+                   _s_y_s_c_a_l_l@@6644   Trace _s_y_s_c_a_l_l only for the 64-bit personality.
+
+                   _s_y_s_c_a_l_l@@3322   Trace _s_y_s_c_a_l_l only for the 32-bit personality.
+
+                   _s_y_s_c_a_l_l@@xx3322  Trace _s_y_s_c_a_l_l only for the 32-on-64-bit personality.
+
+                   %%ffiillee
+                   ffiillee         Trace all system calls which take a file name as an argument.  You can think of this as an abbreviation for --ee ttrraaccee=ooppeenn,ssttaatt,cchhmmoodd,uunnlliinnkk,...  which is  useful  to
+                                seeing  what files the process is referencing.  Furthermore, using the abbreviation will ensure that you don't accidentally forget to include a call like llssttaatt(2) in
+                                the list.  Betchya woulda forgot that one.  The syntax without a preceding percent sign ("--ee ttrraaccee=ffiillee") is deprecated.
+
+                   %%pprroocceessss
+                   pprroocceessss      Trace all system calls which involve process management.  This is useful for watching the fork, wait, and exec steps of a process.  The syntax  without  a  preceding
+                                percent sign ("--ee ttrraaccee=pprroocceessss") is deprecated.
+
+                   %%nneett
+                   %%nneettwwoorrkk
+                   nneettwwoorrkk      Trace all the network related system calls.  The syntax without a preceding percent sign ("--ee ttrraaccee=nneettwwoorrkk") is deprecated.
+
+                   %%ssiiggnnaall
+                   ssiiggnnaall       Trace all signal related system calls.  The syntax without a preceding percent sign ("--ee ttrraaccee=ssiiggnnaall") is deprecated.
+
+                   %%iippcc
+                   iippcc          Trace all IPC related system calls.  The syntax without a preceding percent sign ("--ee ttrraaccee=iippcc") is deprecated.
+
+                   %%ddeesscc
+                   ddeesscc         Trace all file descriptor related system calls.  The syntax without a preceding percent sign ("--ee ttrraaccee=ddeesscc") is deprecated.
+
+                   %%mmeemmoorryy
+                   mmeemmoorryy       Trace all memory mapping related system calls.  The syntax without a preceding percent sign ("--ee ttrraaccee=mmeemmoorryy") is deprecated.
+
+                   %%ccrreeddss       Trace system calls that read or modify user and group identifiers or capability sets.
+
+                   %%ssttaatt        Trace stat syscall variants.
+
+                   %%llssttaatt       Trace lstat syscall variants.
+
+                   %%ffssttaatt       Trace fstat and fstatat syscall variants.
+
+                   %%%%ssttaatt       Trace syscalls used for requesting file status (stat, lstat, fstat, fstatat, statx, and their variants).
+
+                   %%ssttaattffss      Trace statfs, statfs64, statvfs, osf_statfs, and osf_statfs64 system calls.  The same effect can be achieved with --ee ttrraaccee=//^^((..**__))??ssttaattvv??ffss regular expression.
+
+                   %%ffssttaattffss     Trace fstatfs, fstatfs64, fstatvfs, osf_fstatfs, and osf_fstatfs64 system calls.  The same effect can be achieved with --ee ttrraaccee=//ffssttaattvv??ffss regular expression.
+
+                   %%%%ssttaattffss     Trace  syscalls related to file system statistics (statfs-like, fstatfs-like, and ustat).  The same effect can be achieved with --ee ttrraaccee=//ssttaattvv??ffss||ffssssttaatt||uussttaatt regu‐
+                                lar expression.
+
+                   %%ppuurree        Trace syscalls that always succeed and have no arguments.  Currently, this list includes aarrcc__ggeettttllss(2), ggeettddttaabblleessiizzee(2), ggeetteeggiidd(2), ggeetteeggiidd3322(2),  ggeetteeuuiidd(2),  ggee‐‐
+                                tteeuuiidd3322(2),  ggeettggiidd(2),  ggeettggiidd3322(2), ggeettppaaggeessiizzee(2), ggeettppggrrpp(2), ggeettppiidd(2), ggeettppppiidd(2), ggeett__tthhrreeaadd__aarreeaa(2) (on architectures other than x86), ggeettttiidd(2), ggeett__ttllss(2),
+                                ggeettuuiidd(2), ggeettuuiidd3322(2), ggeettxxggiidd(2), ggeettxxppiidd(2), ggeettxxuuiidd(2), kkeerrnn__ffeeaattuurreess(2), and mmeettaagg__ggeett__ttllss(2) syscalls.
+
+                   The --cc option is useful for determining which system calls might be useful to trace.  For example, ttrraaccee=ooppeenn,,cclloossee,,rreeaadd,,wwrriittee means to only trace those four  system  calls.   Be
+                   careful when making inferences about the user/kernel boundary if only a subset of system calls are being monitored.  The default is ttrraaccee=aallll.
+
+       --ee ssiiggnnaall=_s_e_t
+       ----ssiiggnnaall=_s_e_t
+                   Trace only the specified subset of signals.  The default is ssiiggnnaall=aallll.  For example, ssiiggnnaall=!SSIIGGIIOO (or ssiiggnnaall=!iioo) causes SSIIGGIIOO signals not to be traced.
+
+       --ee ssttaattuuss=_s_e_t
+       ----ssttaattuuss=_s_e_t
+                   Print only system calls with the specified return status.  The default is ssttaattuuss=aallll.  When using the ssttaattuuss qualifier, because ssttrraaccee waits for system calls to return before de‐
+                   ciding whether they should be printed or not, the traditional order of events may not be preserved anymore.  If two system calls are executed by concurrent threads,  ssttrraaccee  will
+                   first  print  both  the  entry and exit of the first system call to exit, regardless of their respective entry time.  The entry and exit of the second system call to exit will be
+                   printed afterwards.  Here is an example when sseelleecctt(2) is called, but a different thread calls cclloocckk__ggeettttiimmee(2) before sseelleecctt(2) finishes:
+
+                       [pid 28779] 1130322148.939977 clock_gettime(CLOCK_REALTIME, {1130322148, 939977000}) = 0
+                       [pid 28772] 1130322148.438139 select(4, [3], NULL, NULL, NULL) = 1 (in [3])
+
+                   _s_e_t can include the following elements:
+
+                   ssuucccceessssffuull   Trace system calls that returned without an error code.  The --zz option has the effect of ssttaattuuss=ssuucccceessssffuull.
+                   ffaaiilleedd       Trace system calls that returned with an error code.  The --ZZ option has the effect of ssttaattuuss=ffaaiilleedd.
+                   uunnffiinniisshheedd   Trace system calls that did not return.  This might happen, for example, due to an execve call in a neighbour thread.
+                   uunnaavvaaiillaabbllee  Trace system calls that returned but strace failed to fetch the error status.
+                   ddeettaacchheedd     Trace system calls for which strace detached before the return.
+
+       --PP _p_a_t_h
+       ----ttrraaccee--ppaatthh=_p_a_t_h
+                   Trace only system calls accessing _p_a_t_h.  Multiple --PP options can be used to specify several paths.
+
+       --zz          Print only syscalls that returned without an error code.
+
+       --ZZ          Print only syscalls that returned with an error code.
+
+   OOuuttppuutt ffoorrmmaatt
+       --aa _c_o_l_u_m_n
+       ----ccoolluummnnss=_c_o_l_u_m_n
+                   Align return values in a specific column (default column 40).
+
+       --ee aabbbbrreevv=_s_y_s_c_a_l_l___s_e_t
+       ----aabbbbrreevv=_s_y_s_c_a_l_l___s_e_t
+                   Abbreviate the output from printing each member of large structures.  The syntax of the _s_y_s_c_a_l_l___s_e_t specification is the same as in the --ee  ttrraaccee  option.   The  default  is  aabb‐‐
+                   bbrreevv=aallll.  The --vv option has the effect of aabbbbrreevv=nnoonnee.
+
+       --ee vveerrbboossee=_s_y_s_c_a_l_l___s_e_t
+       ----vveerrbboossee=_s_y_s_c_a_l_l___s_e_t
+                   Dereference structures for the specified set of system calls.  The syntax of the _s_y_s_c_a_l_l___s_e_t specification is the same as in the --ee ttrraaccee option.  The default is vveerrbboossee=aallll.
+
+       --ee rraaww=_s_y_s_c_a_l_l___s_e_t
+       ----rraaww=_s_y_s_c_a_l_l___s_e_t
+                   Print raw, undecoded arguments for the specified set of system calls.  The syntax of the _s_y_s_c_a_l_l___s_e_t specification is the same as in the --ee ttrraaccee option.  This option has the ef‐
+                   fect of causing all arguments to be printed in hexadecimal.  This is mostly useful if you don't trust the decoding or you need to know the actual numeric value  of  an  argument.
+                   See also --XX rraaww option.
+
+       --ee rreeaadd=_s_e_t
+       ----rreeaadd=_s_e_t  Perform  a  full  hexadecimal and ASCII dump of all the data read from file descriptors listed in the specified set.  For example, to see all input activity on file descriptors _3
+                   and _5 use --ee rreeaadd=_3,_5.  Note that this is independent from the normal tracing of the rreeaadd(2) system call which is controlled by the option --ee ttrraaccee=rreeaadd.
+
+       --ee wwrriittee=_s_e_t
+       ----wwrriittee=_s_e_t Perform a full hexadecimal and ASCII dump of all the data written to file descriptors listed in the specified set.  For example, to see all output activity on file descriptors  _3
+                   and _5 use --ee wwrriittee=_3,_5.  Note that this is independent from the normal tracing of the wwrriittee(2) system call which is controlled by the option --ee ttrraaccee=wwrriittee.
+
+       --ee kkvvmm=vvccppuu
+       ----kkvvmm=vvccppuu  Print the exit reason of kvm vcpu.  Requires Linux kernel version 4.16.0 or higher.
+
+       --ii
+       ----iinnssttrruuccttiioonn--ppooiinntteerr
+                   Print the instruction pointer at the time of the system call.
+
+       --kk
+       ----ssttaacckk--ttrraacceess
+                   Print the execution stack trace of the traced processes after each system call.
+
+       --oo _f_i_l_e_n_a_m_e
+       ----oouuttppuutt=_f_i_l_e_n_a_m_e
+                   Write  the trace output to the file _f_i_l_e_n_a_m_e rather than to stderr.  _f_i_l_e_n_a_m_e._p_i_d form is used if --ffff option is supplied.  If the argument begins with '|' or '!', the rest of the
+                   argument is treated as a command and all output is piped to it.  This is convenient for piping the debugging output to a program without affecting the  redirections  of  executed
+                   programs.  The latter is not compatible with --ffff option currently.
+
+       --AA
+       ----oouuttppuutt--aappppeenndd--mmooddee
+                   Open the file provided in the --oo option in append mode.
+
+       --qq          Suppress messages about attaching, detaching etc.  This happens automatically when output is redirected to a file and the command is run directly instead of attaching.
+
+       --qqqq         If given twice, suppress messages about process exit status.
+
+       --rr          Print a relative timestamp upon entry to each system call.  This records the time difference between the beginning of successive system calls.  Note that since --rr option uses the
+                   monotonic clock time for measuring time difference and not the wall clock time, its measurements can differ from the difference in time reported by the --tt option.
+
+       --ss _s_t_r_s_i_z_e
+       ----ssttrriinngg--lliimmiitt=_s_t_r_s_i_z_e
+                   Specify the maximum string size to print (the default is 32).  Note that filenames are not considered strings and are always printed in full.
+
+       --tt          Prefix each line of the trace with the wall clock time.
+
+       --tttt         If given twice, the time printed will include the microseconds.
+
+       --tttttt        If given thrice, the time printed will include the microseconds and the leading portion will be printed as the number of seconds since the epoch.
+
+       --TT          Show the time spent in system calls.  This records the time difference between the beginning and the end of each system call.
+
+       --vv
+       ----nnoo--aabbbbrreevv Print unabbreviated versions of environment, stat, termios, etc.  calls.  These structures are very common in calls and so the default behavior displays a  reasonable  subset  of
+                   structure members.  Use this option to get all of the gory details.
+
+       --xx          Print all non-ASCII strings in hexadecimal string format.
+
+       --xxxx         Print all strings in hexadecimal string format.
+
+       --XX _f_o_r_m_a_t
+       ----ccoonnsstt--pprriinntt--ssttyyllee=_f_o_r_m_a_t
+                   Set the format for printing of named constants and flags.  Supported _f_o_r_m_a_t values are:
+
+                   rraaww       Raw number output, without decoding.
+                   aabbbbrreevv    Output a named constant or a set of flags instead of the raw number if they are found.  This is the default ssttrraaccee behaviour.
+                   vveerrbboossee   Output both the raw value and the decoded string (as a comment).
+
+       --yy          Print paths associated with file descriptor arguments.
+
+       --yyyy         Print protocol specific information associated with socket file descriptors, and block/character device number associated with device file descriptors.
+
+   SSttaattiissttiiccss
+       --cc
+       ----ssuummmmaarryy--oonnllyy
+                   Count  time,  calls, and errors for each system call and report a summary on program exit, suppressing the regular output.  This attempts to show system time (CPU time spent run‐
+                   ning in the kernel) independent of wall clock time.  If --cc is used with --ff, only aggregate totals for all traced processes are kept.
+
+       --CC
+       ----ssuummmmaarryy   Like --cc but also print regular output while processes are running.
+
+       --OO _o_v_e_r_h_e_a_d Set the overhead for tracing system calls to _o_v_e_r_h_e_a_d.  This is useful for overriding the default heuristic for guessing how much time is spent in mere measuring when timing sys‐
+                   tem  calls  using  the  --cc option.  The accuracy of the heuristic can be gauged by timing a given program run without tracing (using ttiimmee(1)) and comparing the accumulated system
+                   call time to the total produced using --cc.
+
+                   The format of _o_v_e_r_h_e_a_d specification is described in section _T_i_m_e _s_p_e_c_i_f_i_c_a_t_i_o_n _f_o_r_m_a_t _d_e_s_c_r_i_p_t_i_o_n.
+
+       --SS _s_o_r_t_b_y
+       ----ssuummmmaarryy--ssoorrtt--bbyy=_s_o_r_t_b_y
+                   Sort the output of the histogram printed by the --cc option by the specified criterion.  Legal values are ttiimmee (or ttiimmee__ttoottaall or ttoottaall__ttiimmee), ccaallllss (or ccoouunntt), eerrrroorrss  (or  eerrrroorr),
+                   nnaammee (or ssyyssccaallll or ssyyssccaallll__nnaammee), and nnootthhiinngg (or nnoonnee); default is ttiimmee.
+
+       --ww
+       ----ssuummmmaarryy--wwaallll--cclloocckk
+                   Summarise the time difference between the beginning and end of each system call.  The default is to summarise the system time.
+
+   TTaammppeerriinngg
+       --ee iinnjjeecctt=_s_y_s_c_a_l_l___s_e_t[:eerrrroorr=_e_r_r_n_o|:rreettvvaall=_v_a_l_u_e][:ssiiggnnaall=_s_i_g][:ssyyssccaallll=_s_y_s_c_a_l_l][:ddeellaayy__eenntteerr=_d_e_l_a_y][:ddeellaayy__eexxiitt=_d_e_l_a_y][:wwhheenn=_e_x_p_r]
+       ----iinnjjeecctt=_s_y_s_c_a_l_l___s_e_t[:eerrrroorr=_e_r_r_n_o|:rreettvvaall=_v_a_l_u_e][:ssiiggnnaall=_s_i_g][:ssyyssccaallll=_s_y_s_c_a_l_l][:ddeellaayy__eenntteerr=_d_e_l_a_y][:ddeellaayy__eexxiitt=_d_e_l_a_y][:wwhheenn=_e_x_p_r]
+                   Perform syscall tampering for the specified set of syscalls.  The syntax of the _s_y_s_c_a_l_l___s_e_t specification is the same as in the --ee ttrraaccee option.
+
+                   At least one of eerrrroorr, rreettvvaall, ssiiggnnaall, ddeellaayy__eenntteerr, or ddeellaayy__eexxiitt options has to be specified.  eerrrroorr and rreettvvaall are mutually exclusive.
+
+                   If :eerrrroorr=_e_r_r_n_o option is specified, a fault is injected into a syscall invocation: the syscall number is replaced by -1 which corresponds to an invalid syscall (unless a syscall
+                   is specified with :ssyyssccaallll== option), and the error code is specified using a symbolic _e_r_r_n_o value like EENNOOSSYYSS or a numeric value within 1..4095 range.
+
+                   If :rreettvvaall=_v_a_l_u_e option is specified, success injection is performed: the syscall number is replaced by -1, but a bogus success value is returned to the callee.
+
+                   If :ssiiggnnaall=_s_i_g option is specified with either a symbolic value like SSIIGGSSEEGGVV or a numeric value within 1..SSIIGGRRTTMMAAXX range, that signal is delivered on entering every syscall spec‐
+                   ified by the _s_e_t.
+
+                   If :ddeellaayy__eenntteerr=_d_e_l_a_y or :ddeellaayy__eexxiitt=_d_e_l_a_y options are specified, delay injection is performed: the tracee is delayed by time period specified by _d_e_l_a_y on entering or exiting the
+                   syscall, respectively.  The format of _d_e_l_a_y specification is described in section _T_i_m_e _s_p_e_c_i_f_i_c_a_t_i_o_n _f_o_r_m_a_t _d_e_s_c_r_i_p_t_i_o_n.
+
+                   If :ssiiggnnaall=_s_i_g option is specified without :eerrrroorr=_e_r_r_n_o, :rreettvvaall=_v_a_l_u_e or :ddeellaayy__{{eenntteerr,,eexxiitt}}=_u_s_e_c_s options, then only a signal _s_i_g is delivered without a syscall fault or  delay
+                   injection.   Conversely,  :eerrrroorr=_e_r_r_n_o or :rreettvvaall=_v_a_l_u_e option without :ddeellaayy__eenntteerr=_d_e_l_a_y, :ddeellaayy__eexxiitt=_d_e_l_a_y or :ssiiggnnaall=_s_i_g options injects a fault without delivering a signal or
+                   injecting a delay, etc.
+
+                   If both :eerrrroorr=_e_r_r_n_o or :rreettvvaall=_v_a_l_u_e and :ssiiggnnaall=_s_i_g options are specified, then both a fault or success is injected and a signal is delivered.
+
+                   if :ssyyssccaallll=_s_y_s_c_a_l_l option is specified, the corresponding syscall with no side effects is injected instead of -1.   Currently,  only  "pure"  (see  --ee  ttrraaccee=%%ppuurree  description)
+                   syscalls can be specified there.
+
+                   Unless a :wwhheenn=_e_x_p_r subexpression is specified, an injection is being made into every invocation of each syscall from the _s_e_t.
+
+                   The format of the subexpression is one of the following:
+
+                   _f_i_r_s_t       For every syscall from the _s_e_t, perform an injection for the syscall invocation number _f_i_r_s_t only.
+                   _f_i_r_s_t++      For every syscall from the _s_e_t, perform injections for the syscall invocation number _f_i_r_s_t and all subsequent invocations.
+                   _f_i_r_s_t++_s_t_e_p  For every syscall from the _s_e_t, perform injections for syscall invocations number _f_i_r_s_t, _f_i_r_s_t+_s_t_e_p, _f_i_r_s_t+_s_t_e_p+_s_t_e_p, and so on.
+
+                   For example, to fail each third and subsequent chdir syscalls with EENNOOEENNTT, use --ee iinnjjeecctt=_c_h_d_i_r:eerrrroorr=_E_N_O_E_N_T:wwhheenn=_3++.
+
+                   The valid range for numbers _f_i_r_s_t and _s_t_e_p is 1..65535.
+
+                   An  injection  expression can contain only one eerrrroorr= or rreettvvaall= specification, and only one ssiiggnnaall= specification.  If an injection expression contains multiple wwhheenn= specifica‐
+                   tions, the last one takes precedence.
+
+                   Accounting of syscalls that are subject to injection is done per syscall and per tracee.
+
+                   Specification of syscall injection can be combined with other syscall filtering options, for example, --PP _/_d_e_v_/_u_r_a_n_d_o_m --ee iinnjjeecctt=_f_i_l_e:eerrrroorr=_E_N_O_E_N_T.
+
+       --ee ffaauulltt=_s_y_s_c_a_l_l___s_e_t[:eerrrroorr=_e_r_r_n_o][:wwhheenn=_e_x_p_r]
+       ----ffaauulltt=_s_y_s_c_a_l_l___s_e_t[:eerrrroorr=_e_r_r_n_o][:wwhheenn=_e_x_p_r]
+                   Perform syscall fault injection for the specified set of syscalls.
+
+                   This is equivalent to more generic --ee iinnjjeecctt= expression with default value of _e_r_r_n_o option set to EENNOOSSYYSS.
+
+   MMiisscceellllaanneeoouuss
+       --dd
+       ----ddeebbuugg     Show some debugging output of ssttrraaccee itself on the standard error.
+
+       --FF          This option is deprecated.  It is retained for backward compatibility only and may be removed in future releases.  Usage of multiple instances of --FF option is still equivalent to
+                   a single --ff, and it is ignored at all if used along with one or more instances of --ff option.
+
+       --hh
+       ----hheellpp      Print the help summary.
+
+       ----sseeccccoommpp--bbppff
+                   Enable  (experimental)  usage  of seccomp-bpf (see sseeccccoommpp(2)) to have ppttrraaccee(2)-stops only when system calls that are being traced occur in the traced processes.  Implies the --ff
+                   option.  An attempt to rely on seccomp-bpf to filter system calls may fail for various reasons, e.g. there are too many system calls to filter, the seccomp API is not  available,
+                   or  ssttrraaccee itself is being traced.  ----sseeccccoommpp--bbppff is also ineffective on processes attached using --pp.  In cases when seccomp-bpf filter setup failed, ssttrraaccee proceeds as usual and
+                   stops traced processes on every system call.
+
+       --VV
+       ----vveerrssiioonn   Print the version number of ssttrraaccee.
+
+   TTiimmee ssppeecciiffiiccaattiioonn ffoorrmmaatt ddeessccrriippttiioonn
+       Time values can be specified as a decimal floating point number (in a format accepted by ssttrrttoodd(3)), optionally followed by one of the following suffices that specify the  unit  of  time:  ss
+       (seconds), mmss (milliseconds), uuss (microseconds), or nnss (nanoseconds).  If no suffix is specified, the value is interpreted as microseconds.
+
+       The described format is used for --OO, --ee iinnjjeecctt=ddeellaayy__eenntteerr, and --ee iinnjjeecctt=ddeellaayy__eexxiitt options.
+
+DDIIAAGGNNOOSSTTIICCSS
+       When  _c_o_m_m_a_n_d  exits,  ssttrraaccee  exits  with the same exit status.  If _c_o_m_m_a_n_d is terminated by a signal, ssttrraaccee terminates itself with the same signal, so that ssttrraaccee can be used as a wrapper
+       process transparent to the invoking parent process.  Note that parent-child relationship (signal stop notifications, ggeettppppiidd(2) value, etc) between traced process and its parent are not pre‐
+       served unless --DD is used.
+
+       When using --pp without a _c_o_m_m_a_n_d, the exit status of ssttrraaccee is zero unless no processes has been attached or there was an unexpected error in doing the tracing.
+
+SSEETTUUIIDD IINNSSTTAALLLLAATTIIOONN
+       If  ssttrraaccee  is  installed  setuid to root then the invoking user will be able to attach to and trace processes owned by any user.  In addition setuid and setgid programs will be executed and
+       traced with the correct effective privileges.  Since only users trusted with full root privileges should be allowed to do these things, it only makes sense to install  ssttrraaccee  as  setuid  to
+       root when the users who can execute it are restricted to those users who have this trust.  For example, it makes sense to install a special version of ssttrraaccee with mode 'rwsr-xr--', user rroooott
+       and group ttrraaccee, where members of the ttrraaccee group are trusted users.  If you do use this feature, please remember to install a regular non-setuid version of ssttrraaccee for ordinary users to use.
+
+MMUULLTTIIPPLLEE PPEERRSSOONNAALLIITTIIEESS SSUUPPPPOORRTT
+       On some architectures, ssttrraaccee supports decoding of syscalls for processes that use different ABI rather than the one ssttrraaccee uses.  Specifically, in addition to decoding  native  ABI,  ssttrraaccee
+       can decode the following ABIs on the following architectures:
+
+       ┌───────────────────┬─────────────────────────┐
+       │AArrcchhiitteeccttuurree       │ AABBIIss ssuuppppoorrtteedd          │
+       ├───────────────────┼─────────────────────────┤
+       │x86_64             │ i386, x32 [1]; i386 [2] │
+       ├───────────────────┼─────────────────────────┤
+       │AArch64            │ ARM 32-bit EABI         │
+       ├───────────────────┼─────────────────────────┤
+       │PowerPC 64-bit [3] │ PowerPC 32-bit          │
+       ├───────────────────┼─────────────────────────┤
+       │s390x              │ s390                    │
+       ├───────────────────┼─────────────────────────┤
+       │SPARC 64-bit       │ SPARC 32-bit            │
+       ├───────────────────┼─────────────────────────┤
+       │TILE 64-bit        │ TILE 32-bit             │
+       └───────────────────┴─────────────────────────┘
+       [1]  When ssttrraaccee is built as an x86_64 application
+       [2]  When ssttrraaccee is built as an x32 application
+       [3]  Big endian only
+
+       This  support is optional and relies on ability to generate and parse structure definitions during the build time.  Please refer to the output of the ssttrraaccee --VV command in order to figure out
+       what support is available in your ssttrraaccee build ("non-native" refers to an ABI that differs from the ABI ssttrraaccee has):
+
+       mm3322--mmppeerrss      ssttrraaccee can trace and properly decode non-native 32-bit binaries.
+       nnoo--mm3322--mmppeerrss   ssttrraaccee can trace, but cannot properly decode non-native 32-bit binaries.
+       mmxx3322--mmppeerrss     ssttrraaccee can trace and properly decode non-native 32-on-64-bit binaries.
+       nnoo--mmxx3322--mmppeerrss  ssttrraaccee can trace, but cannot properly decode non-native 32-on-64-bit binaries.
+
+       If the output contains neither mm3322--mmppeerrss nor nnoo--mm3322--mmppeerrss, then decoding of non-native 32-bit binaries is not implemented at all or not applicable.
+
+       Likewise, if the output contains neither mmxx3322--mmppeerrss nor nnoo--mmxx3322--mmppeerrss, then decoding of non-native 32-on-64-bit binaries is not implemented at all or not applicable.
+
+NNOOTTEESS
+       It is a pity that so much tracing clutter is produced by systems employing shared libraries.
+
+       It is instructive to think about system call inputs and outputs as data-flow across the user/kernel boundary.  Because user-space and kernel-space are separate and address-protected,  it  is
+       sometimes possible to make deductive inferences about process behavior using inputs and outputs as propositions.
+
+       In  some cases, a system call will differ from the documented behavior or have a different name.  For example, the ffaacccceessssaatt(2) system call does not have _f_l_a_g_s argument, and the sseettrrlliimmiitt(2)
+       library function uses pprrlliimmiitt6644(2) system call on modern (2.6.38+) kernels.  These discrepancies are normal but idiosyncratic characteristics of the system call interface and  are  accounted
+       for by C library wrapper functions.
+
+       Some system calls have different names in different architectures and personalities.  In these cases, system call filtering and printing uses the names that match corresponding ____NNRR__* kernel
+       macros of the tracee's architecture and personality.  There are two exceptions from this general rule: aarrmm__ffaaddvviissee6644__6644(2) ARM syscall and xxtteennssaa__ffaaddvviissee6644__6644(2) Xtensa syscall are  filtered
+       and printed as ffaaddvviissee6644__6644(2).
+
+       On  x32,  syscalls that are intended to be used by 64-bit processes and not x32 ones (for example, rreeaaddvv(2), that has syscall number 19 on x86_64, with its x32 counterpart has syscall number
+       515), but called with ____XX3322__SSYYSSCCAALLLL__BBIITT flag being set, are designated with ##6644 suffix.
+
+       On some platforms a process that is attached to with the --pp option may observe a spurious EEIINNTTRR return from the current system call that is  not  restartable.   (Ideally,  all  system  calls
+       should be restarted on ssttrraaccee attach, making the attach invisible to the traced process, but a few system calls aren't.  Arguably, every instance of such behavior is a kernel bug.)  This may
+       have an unpredictable effect on the process if the process takes no action to restart the system call.
+
+       As ssttrraaccee executes the specified _c_o_m_m_a_n_d directly and does not employ a shell for that, scripts without shebang that usually run just fine when invoked by shell fail to execute with  EENNOOEEXXEECC
+       error.  It is advisable to manually supply a shell as a _c_o_m_m_a_n_d with the script as its argument.
+
+BBUUGGSS
+       Programs that use the _s_e_t_u_i_d bit do not have effective user ID privileges while being traced.
+
+       A traced process runs slowly.
+
+       Traced processes which are descended from _c_o_m_m_a_n_d may be left running after an interrupt signal (CCTTRRLL--CC).
+
+HHIISSTTOORRYY
+       The  original  ssttrraaccee  was  written by Paul Kranenburg for SunOS and was inspired by its ttrraaccee utility.  The SunOS version of ssttrraaccee was ported to Linux and enhanced by Branko Lankester, who
+       also wrote the Linux kernel support.  Even though Paul released ssttrraaccee 2.5 in 1992, Branko's work was based on Paul's ssttrraaccee 1.5 release from 1991.  In 1993, Rick Sladkey merged  ssttrraaccee  2.5
+       for  SunOS  and the second release of ssttrraaccee for Linux, added many of the features of ttrruussss(1) from SVR4, and produced an ssttrraaccee that worked on both platforms.  In 1994 Rick ported ssttrraaccee to
+       SVR4 and Solaris and wrote the automatic configuration support.  In 1995 he ported ssttrraaccee to Irix and tired of writing about himself in the third person.
+
+       Beginning with 1996, ssttrraaccee was maintained by Wichert Akkerman.  During his tenure, ssttrraaccee development migrated to CVS; ports to FreeBSD and  many  architectures  on  Linux  (including  ARM,
+       IA-64,  MIPS,  PA-RISC, PowerPC, s390, SPARC) were introduced.  In 2002, the burden of ssttrraaccee maintainership was transferred to Roland McGrath.  Since then, ssttrraaccee gained support for several
+       new Linux architectures (AMD64, s390x, SuperH), bi-architecture support for some of them, and received numerous additions and improvements in syscalls decoders on Linux;  ssttrraaccee  development
+       migrated  to ggiitt during that period.  Since 2009, ssttrraaccee is actively maintained by Dmitry Levin.  ssttrraaccee gained support for AArch64, ARC, AVR32, Blackfin, Meta, Nios II, OpenSISC 1000, RISC-
+       V, Tile/TileGx, Xtensa architectures since that time.  In 2012, unmaintained and apparently broken support for non-Linux operating systems was removed.  Also, in 2012 ssttrraaccee  gained  support
+       for path tracing and file descriptor path decoding.  In 2014, support for stack traces printing was added.  In 2016, syscall fault injection was implemented.
+
+       For the additional information, please refer to the NNEEWWSS file and ssttrraaccee repository commit log.
+
+RREEPPOORRTTIINNGG BBUUGGSS
+       Problems with ssttrraaccee should be reported to the ssttrraaccee mailing list ⟨mailto:strace-devel@lists.strace.io⟩.
+
+SSEEEE AALLSSOO
+       ssttrraaccee--lloogg--mmeerrggee(1), llttrraaccee(1), ppeerrff--ttrraaccee(1), ttrraaccee--ccmmdd(1), ttiimmee(1), ppttrraaccee(2), pprroocc(5)
+
+       ssttrraaccee Home Page ⟨https://strace.io/⟩
+
+AAUUTTHHOORRSS
+       The complete list of ssttrraaccee contributors can be found in the CCRREEDDIITTSS file.
+
+strace 5.5                                                                                    2020-02-04                                                                                    STRACE(1)
