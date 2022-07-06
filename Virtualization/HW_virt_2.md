@@ -64,7 +64,27 @@ VirtualBox Graphical User Interface Version 6.1.32_Ubuntu r149290
     Создать виртуальную машину.
     Зайти внутрь ВМ, убедиться, что Docker установлен с помощью команды
 
-И вот тут начались проблемы :) Я не смог создать ВМ на базе Vagrant ввиду того, что ресурс в РФ заблокирован и образ человеческим способом не скачать. Так как нечеловеческие способы тоже доступны, то образ beno/ubuntu-20.04 скачать я смог. Однако при добавлении его вручую, после чего команда vagrant up завершилась успехом выдается следующее. Побороть это я так и не смог. Пожалуйста, дайте какие-нибудь обходные пути, так как задание сделать охота, а учитывая, что последующие 3 лекции все равно будут использовать Vagrantoвские ВМ, например, тот же Packer, то как быть дальше - не знаю:) Хотел сделать все 4 лекции сразу, так как они логически последовательны, но пока что увы...
+И вот тут начались проблемы :) Я не смог создать ВМ на базе Vagrant ввиду того, что ресурс в РФ заблокирован и образ человеческим способом не скачать. Так как нечеловеческие способы тоже доступны, то образ beno/ubuntu-20.04 скачать я смог. Однако при добавлении его вручую, после чего команда vagrant up завершилась бы успехом выдается следующее. 
+
+
+alegachev@alegachev-virtual-machine:~$ vagrant box add bento /home/alegachev/devops-netology/Virtualization/bento
+==> box: Box file was not detected as metadata. Adding it directly...
+==> box: Adding box 'bento' (v0) for provider: 
+    box: Downloading: /home/alegachev/devops-netology/Virtualization/bento
+The "metadata.json" file for the box 'bento' was not found.
+Boxes require this file in order for Vagrant to determine the
+provider it was made for. If you made the box, please add a
+"metadata.json" file to it. If someone else made the box, please
+notify the box creator that the box is corrupt. Documentation for
+box file format can be found at the URL below:
+
+https://www.vagrantup.com/docs/boxes/format.html
+
+json file при этом присутствует, внутри него все как надо = {
+"provider":"virtualbox"
+}
+
+Побороть это я так и не смог. Пожалуйста, дайте какие-нибудь обходные пути, так как задание сделать охота, а учитывая, что последующие 3 лекции все равно будут использовать Vagrantoвские ВМ, например, тот же Packer, то как быть дальше - не знаю:) Хотел сделать все 4 лекции сразу, так как они логически последовательны, но пока что увы...
 
 
 
