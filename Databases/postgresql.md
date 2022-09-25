@@ -37,7 +37,7 @@
        template1 | postgres | UTF8     | en_US.utf8 | en_US.utf8 | =c/postgres          +
                  |          |          |            |            | postgres=CTc/postgres
       (3 rows)
-
+----
     postgres=# \c postgres
     postgres=# \dtS
                         List of relations
@@ -54,7 +54,7 @@
     pg_catalog | pg_cast                 | table | postgres
     pg_catalog | pg_class                | table | postgres
     pg_catalog | pg_collation            | table | postgres
-
+----
     postgres=# \dS+ pg_tables
                           View "pg_catalog.pg_tables"
       Column    |  Type   | Collation | Nullable | Default | Storage | Description 
@@ -80,7 +80,7 @@
      LEFT JOIN pg_namespace n ON n.oid = c.relnamespace
      LEFT JOIN pg_tablespace t ON t.oid = c.reltablespace
     WHERE c.relkind = ANY (ARRAY['r'::"char", 'p'::"char"]);
-
+----
     postgres=# \q
 
 **Задача 2**
