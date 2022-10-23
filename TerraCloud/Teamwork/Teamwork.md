@@ -15,7 +15,8 @@
 Необходимо включить автопланирование при изменении любых файлов *.tf.
 В качестве результата приложите ссылку на файлы server.yaml и atlantis.yaml.
 
-      
+      https://github.com/LegoBro007/devops-netology/blob/master/TerraCloud/Teamwork/server.yaml
+      https://github.com/LegoBro007/devops-netology/blob/master/TerraCloud/Teamwork/atlantis.yaml
 
 **Задача 3. Знакомство с каталогом модулей.**
 
