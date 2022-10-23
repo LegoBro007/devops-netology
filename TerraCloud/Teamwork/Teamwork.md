@@ -27,7 +27,8 @@
      Разок поиспользовал бы, чтобы не тратить время на перечисление параметров, а просто взял бы нужные.
      
      Еще здорово, что и терраформ заботится о нас, и AWS тоже 
-      ![image alt](https://github.com/LegoBro007/devops-netology/blob/master/TerraCloud/Teamwork/Screenshot.png)
+     
+  ![image alt](https://github.com/LegoBro007/devops-netology/blob/master/TerraCloud/Teamwork/Screenshot.png)
 В рамках предпоследнего задания был создан ec2 при помощи ресурса aws_instance. Создайте аналогичный инстанс при помощи найденного модуля.
 
       Взял Яндексовский подобный модуль, правда нашел только чей-то кастомный.
